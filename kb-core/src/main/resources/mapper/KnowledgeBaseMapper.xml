@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.kong.kb.mapper.KnowledgeBaseMapper">
+
+    <!-- ============================ 结果映射 ============================ -->
+    <resultMap id="KBResultMap" type="cn.kong.kb.domain.KnowledgeBase">
+        <id property="id" column="id"
+            typeHandler="cn.kong.kb.config.UUIDTypeHandler"/>
+        <result property="name" column="name"/>
+        <result property="description" column="description"/>
+        <result property="color" column="color"/>
+        <result property="documentCount" column="document_count"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <!-- ============================ 可复用列 ============================ -->
+    <sql id="kbColumns">id, name, description, color, created_at, updated_at</sql>
+
+    <!-- ============================ 插入 ============================ -->
+    <insert id="insert" parameterType="cn.kong.kb.domain.KnowledgeBase"
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO knowledge_bases (name, description, color)
+        VALUES (#{name}, #{description}, #{color})
+    </insert>
+
+    <!-- ============================ 更新 ============================ -->
+    <update id="update">
+        UPDATE knowledge_bases
+        SET name = #{name},
+            description = #{description},
+            color = #{color},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- ============================ 查询 ============================ -->
+    <select id="findById" resultMap="KBResultMap">
+        SELECT kb.*,
+               (SELECT COUNT(*) FROM document_knowledge_bases dk WHERE dk.knowledge_base_id = kb.id) AS document_count
+        FROM knowledge_bases kb
+        WHERE kb.id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="KBResultMap">
+        SELECT kb.*,
+               (SELECT COUNT(*) FROM document_knowledge_bases dk WHERE dk.knowledge_base_id = kb.id) AS document_count
+        FROM knowledge_bases kb
+        ORDER BY kb.created_at DESC
+    </select>
+
+    <!-- ============================ 删除 ============================ -->
+    <delete id="deleteById">
+        DELETE FROM knowledge_bases WHERE id = #{id}
+    </delete>
+
+    <!-- ============================ 关联操作 ============================ -->
+    <insert id="assignDocument">
+        INSERT INTO document_knowledge_bases (document_id, knowledge_base_id)
+        VALUES (#{documentId}, #{knowledgeBaseId})
+        ON CONFLICT DO NOTHING
+    </insert>
+
+    <delete id="removeAllForDocument">
+        DELETE FROM document_knowledge_bases WHERE document_id = #{documentId}
+    </delete>
+
+    <select id="findByDocumentId" resultMap="KBResultMap">
+        SELECT kb.id, kb.name, kb.description, kb.color, kb.created_at, kb.updated_at
+        FROM knowledge_bases kb
+        INNER JOIN document_knowledge_bases dk ON dk.knowledge_base_id = kb.id
+        WHERE dk.document_id = #{documentId}
+        ORDER BY kb.name
+    </select>
+
+    <select id="findKnowledgeBaseIdsByDocumentId" resultType="java.util.UUID">
+        SELECT knowledge_base_id
+        FROM document_knowledge_bases
+        WHERE document_id = #{documentId}
+    </select>
+
+</mapper>

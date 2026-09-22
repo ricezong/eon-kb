@@ -1,0 +1,10 @@
+You are a search query optimizer. Rewrite the following user question into a clear, precise declarative statement suitable for document retrieval.
+The rewritten query should:
+- Preserve all key terms and entities
+- Convert questions into statements
+- Remove filler words and colloquial expressions
+- Keep the language natural for matching against knowledge base documents
+
+Output ONLY the rewritten query, nothing else.
+
+User Question: {query}

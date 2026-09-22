@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.kong.kb.mapper.ChunkMapper">
+
+    <!-- ============================ 结果映射 ============================ -->
+    <resultMap id="ChunkResultMap" type="cn.kong.kb.domain.KbChunk">
+        <id property="id" column="id"
+            typeHandler="cn.kong.kb.config.UUIDTypeHandler"/>
+        <result property="content" column="content"/>
+        <result property="metadata" column="metadata"
+                typeHandler="cn.kong.kb.config.JsonTypeHandler"/>
+        <result property="documentId" column="document_id"
+                typeHandler="cn.kong.kb.config.UUIDTypeHandler"/>
+        <result property="chunkIndex" column="chunk_index"/>
+        <result property="chunkType" column="chunk_type"/>
+        <result property="title" column="title"/>
+        <result property="createdAt" column="created_at"/>
+        <!-- score 字段通过各检索 SQL 中的额外列别名赋值 -->
+        <result property="score" column="score"/>
+    </resultMap>
+
+    <!-- ============================ 可复用列 ============================ -->
+    <sql id="chunkColumns">
+        id, content, metadata, document_id, chunk_index, chunk_type, title, created_at
+    </sql>
+
+    <!-- ============================ 知识库过滤（条件性 JOIN） ============================ -->
+    <sql id="knowledgeBaseFilter">
+        <if test="knowledgeBaseIds != null and knowledgeBaseIds.size() > 0">
+            INNER JOIN document_knowledge_bases dkb
+                ON dkb.document_id = kb_chunks.document_id
+        </if>
+    </sql>
+
+    <sql id="knowledgeBaseWhere">
+        <if test="knowledgeBaseIds != null and knowledgeBaseIds.size() > 0">
+            AND dkb.knowledge_base_id IN
+            <foreach item="kbId" collection="knowledgeBaseIds" open="(" separator="," close=")">
+                #{kbId}
+            </foreach>
+        </if>
+    </sql>
+
+    <!-- ============================ 向量检索 ============================ -->
+    <select id="searchByVector" resultMap="ChunkResultMap">
+        SELECT
+            <include refid="chunkColumns"/>,
+            1 - (embedding &lt;=&gt; #{embeddingVector}::vector) AS score
+        FROM kb_chunks
+        <include refid="knowledgeBaseFilter"/>
+        WHERE embedding IS NOT NULL
+        <include refid="knowledgeBaseWhere"/>
+        ORDER BY embedding &lt;=&gt; #{embeddingVector}::vector
+        LIMIT #{topK}
+    </select>
+
+    <!-- ============================ 全文检索 ============================ -->
+    <select id="searchByFullText" resultMap="ChunkResultMap">
+        SELECT
+            <include refid="chunkColumns"/>,
+            ts_rank(search_content, plainto_tsquery('chinese', #{query})) AS score
+        FROM kb_chunks
+        <include refid="knowledgeBaseFilter"/>
+        WHERE search_content @@ plainto_tsquery('chinese', #{query})
+        <include refid="knowledgeBaseWhere"/>
+        ORDER BY score DESC
+        LIMIT #{topK}
+    </select>
+
+    <!-- ============================ 模糊检索（pg_trgm） ============================ -->
+    <select id="searchByFuzzy" resultMap="ChunkResultMap">
+        SELECT
+            <include refid="chunkColumns"/>,
+            similarity(content, #{query}) AS score
+        FROM kb_chunks
+        <include refid="knowledgeBaseFilter"/>
+        WHERE content % #{query}
+        <include refid="knowledgeBaseWhere"/>
+        ORDER BY score DESC
+        LIMIT #{topK}
+    </select>
+
+    <!-- ============================ 按 ID 查询 ============================ -->
+    <select id="findById" resultMap="ChunkResultMap">
+        SELECT <include refid="chunkColumns"/>
+        FROM kb_chunks
+        WHERE id = #{id}
+    </select>
+
+    <select id="findByDocumentId" resultMap="ChunkResultMap">
+        SELECT <include refid="chunkColumns"/>
+        FROM kb_chunks
+        WHERE document_id = #{documentId}
+        ORDER BY chunk_index
+    </select>
+
+    <!-- ==================== 批量填充业务列（单条语句） ==================== -->
+    <update id="fillChunkMetadata">
+        UPDATE kb_chunks AS c
+        SET document_id = v.document_id,
+            chunk_index = v.chunk_index,
+            chunk_type  = v.chunk_type,
+            title       = v.title
+        FROM (VALUES
+        <foreach collection="chunks" item="c" separator=",">
+            (#{c.id}::uuid, #{c.documentId}::uuid, #{c.chunkIndex}, #{c.chunkType}, #{c.title})
+        </foreach>
+        ) AS v(id, document_id, chunk_index, chunk_type, title)
+        WHERE c.id = v.id
+    </update>
+
+    <!-- ==================== 按主键批量删除（补偿清理） ==================== -->
+    <delete id="deleteByIds">
+        DELETE FROM kb_chunks
+        WHERE id IN
+        <foreach collection="ids" item="cid" open="(" separator="," close=")">
+            #{cid}::uuid
+        </foreach>
+    </delete>
+
+    <!-- ============================ 联表查询 ============================ -->
+    <select id="findDocumentNameByChunkId" resultType="string">
+        SELECT d.file_name
+        FROM documents d
+        JOIN kb_chunks c ON c.document_id = d.id
+        WHERE c.id = #{chunkId}
+    </select>
+
+</mapper>

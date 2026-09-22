@@ -1,6 +1,6 @@
 spring:
   application:
-    name: superbrain-kb
+    name: eon-kb
 
   # 文件上传
   servlet:
@@ -32,7 +32,7 @@ spring:
 app:
   # 知识库独立数据源（与宿主应用的数据源隔离，前缀为 app.datasource）
   datasource:
-    jdbc-url: ${KB_DB_URL:jdbc:postgresql://127.0.0.1:5432/superbrain}
+    jdbc-url: ${KB_DB_URL:jdbc:postgresql://127.0.0.1:5432/eon-kb}
     username: ${KB_DB_USERNAME:postgres}
     password: ${KB_DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver

@@ -48,7 +48,7 @@ public class DefaultKnowledgeBaseTool implements KnowledgeBaseTool {
 
     @Override
     @Tool(name = "search_knowledge_base",
-            description = "在 SuperBrain 知识库中检索与问题相关的文档片段，返回带来源（文档名/标题）的原文摘录，"
+            description = "在 Eon 知识库中检索与问题相关的文档片段，返回带来源（文档名/标题）的原文摘录，"
                     + "按相关性降序排列。当用户问题涉及内部资料、文档或知识库内容时调用此工具。"
                     + "本工具只做检索、不生成答案，请依据返回的片段自行组织回答并标注来源。")
     public RetrievalResult search(

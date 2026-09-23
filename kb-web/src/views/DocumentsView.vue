@@ -11,7 +11,7 @@ import {
   EllipsisVerticalOutline, LibraryOutline, EyeOutline
 } from '@vicons/ionicons5';
 import { documentApi } from '@/api';
-import type { Document, DocumentStatus } from '@/api/types';
+import type { Document } from '@/api/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import FileTypeIcon from '@/components/common/FileTypeIcon.vue';
 import FileSize from '@/components/common/FileSize.vue';
@@ -28,8 +28,9 @@ const kbStore = useKnowledgeBaseStore();
 const docs = ref<Document[]>([]);
 const loading = ref(false);
 const search = ref('');
-const statusFilter = ref<DocumentStatus | null>(null);
-const kbFilter = ref<string | null>(null);
+// NSelect 的 value 不支持 null，用空串表示"全部"
+const statusFilter = ref<string>('');
+const kbFilter = ref<string>('');
 const checkedRowKeys = ref<DataTableRowKey[]>([]);
 
 const uploadOpen = ref(false);
@@ -50,17 +51,17 @@ async function loadDocs() {
 
 onMounted(loadDocs);
 
-/** 状态选项 */
-const statusOptions: Array<{ label: string; value: DocumentStatus | null }> = [
-  { label: '全部状态', value: null },
+/** 状态选项（空串表示"全部"，NSelect 不接受 null） */
+const statusOptions: Array<{ label: string; value: string }> = [
+  { label: '全部状态', value: '' },
   { label: '已完成', value: 'COMPLETED' },
   { label: '处理中', value: 'PROCESSING' },
   { label: '失败', value: 'FAILED' },
   { label: '排队中', value: 'PENDING' }
 ];
 
-const kbOptions = computed<Array<{ label: string; value: string | null }>>(() => [
-  { label: '全部知识库', value: null },
+const kbOptions = computed<Array<{ label: string; value: string }>>(() => [
+  { label: '全部知识库', value: '' },
   ...kbStore.items.map((kb) => ({ label: kb.name, value: kb.id! }))
 ]);
 

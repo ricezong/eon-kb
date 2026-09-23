@@ -2,13 +2,13 @@
 import { ref, computed, watch } from 'vue';
 import {
   NModal, NUpload, NButton, NIcon, useMessage, NSelect, NAlert,
-  NProgress
+  NProgress, NRadioGroup, NRadioButton
 } from 'naive-ui';
 import type { UploadCustomRequestOptions } from 'naive-ui';
 import { CloudUploadOutline } from '@vicons/ionicons5';
 import { documentApi } from '@/api';
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase';
-import type { UploadResponse } from '@/api/types';
+import type { UploadResponse, ParseMode } from '@/api/types';
 
 const props = defineProps<{
   show: boolean;
@@ -28,11 +28,24 @@ const uploading = ref(false);
 const progress = ref(0);
 const currentFile = ref<string>('');
 
-watch(() => props.show, (v) => {
-  if (v) {
-    selectedKbs.value = [...(props.presetKbIds || [])];
-    progress.value = 0;
-    currentFile.value = '';
+/** 解析方式：默认 AUTO，云端能力从后端 parse-options 拉取 */
+const parseMode = ref<ParseMode>('AUTO');
+const cloudEnabled = ref(false);
+
+watch(() => props.show, async (v) => {
+  if (!v) return;
+  selectedKbs.value = [...(props.presetKbIds || [])];
+  progress.value = 0;
+  currentFile.value = '';
+  parseMode.value = 'AUTO';
+  try {
+    const opts = await documentApi.parseOptions();
+    cloudEnabled.value = opts.cloudEnabled;
+    parseMode.value = opts.defaultMode;
+  } catch {
+    // 拉取失败不阻断上传，退回最保守的本地默认
+    cloudEnabled.value = false;
+    parseMode.value = 'AUTO';
   }
 });
 
@@ -42,6 +55,21 @@ const kbOptions = computed(() =>
     value: kb.id!
   }))
 );
+
+/** 三种解析方式的说明，随选中项动态提示 */
+const parseModeHint = computed(() => {
+  if (parseMode.value === 'LOCAL') {
+    return '强制本地解析（Tika / POI / Jsoup），不调用云端，适合敏感或离线场景。';
+  }
+  if (parseMode.value === 'CLOUD') {
+    return cloudEnabled.value
+      ? '强制 LlamaParse 云端解析，对复杂版式还原更好；云端异常时自动回退本地。'
+      : '未配置 LlamaParse 密钥，选择此项将自动回退本地解析。';
+  }
+  return cloudEnabled.value
+    ? '按文档类型自动选择：PDF / Word / PPT 走云端增强，其余本地解析。'
+    : '云端未启用，当前等同本地解析。';
+});
 
 const ACCEPT = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.md,.markdown,.html,.htm';
 
@@ -54,7 +82,7 @@ async function customUpload({ file, onFinish, onError }: UploadCustomRequestOpti
   progress.value = 0;
 
   try {
-    const resp = await documentApi.upload(raw, selectedKbs.value, (p) => {
+    const resp = await documentApi.upload(raw, selectedKbs.value, parseMode.value, (p) => {
       progress.value = p;
     });
     msg.success(`「${resp.fileName}」已上传，正在处理`);
@@ -82,6 +110,16 @@ async function customUpload({ file, onFinish, onError }: UploadCustomRequestOpti
     @update:show="(v: boolean) => emit('update:show', v)"
   >
     <div class="upload-body">
+      <div class="form-row">
+        <label class="label">解析方式</label>
+        <NRadioGroup v-model:value="parseMode" :disabled="uploading" size="small">
+          <NRadioButton value="AUTO">自动</NRadioButton>
+          <NRadioButton value="LOCAL">本地 (Tika)</NRadioButton>
+          <NRadioButton value="CLOUD" :disabled="!cloudEnabled">云端 (LlamaParse)</NRadioButton>
+        </NRadioGroup>
+        <span class="hint">{{ parseModeHint }}</span>
+      </div>
+
       <div class="form-row">
         <label class="label">归属知识库（可选，可多选）</label>
         <NSelect
@@ -145,6 +183,11 @@ async function customUpload({ file, onFinish, onError }: UploadCustomRequestOpti
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
+}
+.hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  line-height: 1.5;
 }
 
 .dropzone {

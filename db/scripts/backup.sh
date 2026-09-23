@@ -45,12 +45,12 @@ ls -lh "${BACKUP_DIR}"/eon_*.sql.gz 2>/dev/null || echo "  （无备份文件）
 #
 # 1. 从自定义格式备份恢复：
 #    docker exec -i eon-postgres pg_restore \
-#        -U postgres -d eon --clean --if-exists \
+#        -U postgres -d eon-kb --clean --if-exists \
 #        < backup_file.sql.gz | gunzip
 #
 # 2. 从纯 SQL 备份恢复：
 #    gunzip -c backup_file.sql.gz | docker exec -i eon-postgres \
-#        psql -U postgres -d eon
+#        psql -U postgres -d eon-kb
 #
 # 3. Docker Volume 整体备份：
 #    docker run --rm -v eon_pgdata:/data -v /backup:/backup alpine \

@@ -15,6 +15,7 @@ public class KbDocument {
     private String originalPath;
     private int chunkCount;
     private DocumentStatus status;
+    private ParseMode parseMode = ParseMode.AUTO;
     private String errorMessage;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -48,6 +49,9 @@ public class KbDocument {
 
     public DocumentStatus getStatus() { return status; }
     public void setStatus(DocumentStatus status) { this.status = status; }
+
+    public ParseMode getParseMode() { return parseMode; }
+    public void setParseMode(ParseMode parseMode) { this.parseMode = parseMode; }
 
     public String getErrorMessage() { return errorMessage; }
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }

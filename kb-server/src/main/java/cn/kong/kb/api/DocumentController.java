@@ -3,11 +3,16 @@ package cn.kong.kb.api;
 import cn.kong.kb.api.dto.AssignKnowledgeBasesRequest;
 import cn.kong.kb.api.dto.DocumentDto;
 import cn.kong.kb.api.dto.KnowledgeBaseDto;
+import cn.kong.kb.api.dto.ParseOptionsDto;
+import cn.kong.kb.config.LlamaParseProperties;
 import cn.kong.kb.domain.DocumentStatus;
 import cn.kong.kb.domain.KbDocument;
 import cn.kong.kb.domain.KbDocumentType;
 import cn.kong.kb.domain.KnowledgeBase;
+import cn.kong.kb.domain.ParseMode;
 import cn.kong.kb.ingestion.DocumentIngestionService;
+import cn.kong.kb.ingestion.DocumentSource;
+import cn.kong.kb.ingestion.parser.DocumentParserRouter;
 import cn.kong.kb.mapper.DocumentMapper;
 import cn.kong.kb.mapper.KnowledgeBaseMapper;
 import org.slf4j.Logger;
@@ -17,6 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -30,13 +38,19 @@ public class DocumentController {
     private final DocumentIngestionService ingestionService;
     private final DocumentMapper documentMapper;
     private final KnowledgeBaseMapper knowledgeBaseMapper;
+    private final DocumentParserRouter parserRouter;
+    private final LlamaParseProperties llamaParseProperties;
 
     public DocumentController(DocumentIngestionService ingestionService,
                                DocumentMapper documentMapper,
-                               KnowledgeBaseMapper knowledgeBaseMapper) {
+                               KnowledgeBaseMapper knowledgeBaseMapper,
+                               DocumentParserRouter parserRouter,
+                               LlamaParseProperties llamaParseProperties) {
         this.ingestionService = ingestionService;
         this.documentMapper = documentMapper;
         this.knowledgeBaseMapper = knowledgeBaseMapper;
+        this.parserRouter = parserRouter;
+        this.llamaParseProperties = llamaParseProperties;
     }
 
     /**
@@ -44,11 +58,18 @@ public class DocumentController {
      *
      * <p>文件类型白名单统一由 {@link KbDocumentType#isSupportedFileName} 判定
      * （扩展名登记表唯一维护，此处不再保留一份私有白名单）。</p>
+     *
+     * <p><b>边界职责：</b>在请求线程内用 {@code transferTo} 把上传内容<b>流式复制</b>到
+     * 一个由本模块创建、生命周期独立的临时文件，并封装为 {@link DocumentSource} 下传。
+     * 摄入是异步的，而 multipart 临时文件在请求结束时即被容器删除——直接传
+     * {@code MultipartFile} 进异步线程会因临时文件已删而失败。落盘为独立文件既根除该竞态，
+     * 又不把文件字节读进堆内存；该临时文件由 {@code IngestionPipeline} 处理结束后删除。</p>
      */
     @PostMapping("/upload")
     public ResponseEntity<Map<String, Object>> upload(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "knowledgeBaseIds", required = false) List<UUID> knowledgeBaseIds) {
+            @RequestParam(value = "knowledgeBaseIds", required = false) List<UUID> knowledgeBaseIds,
+            @RequestParam(value = "parseMode", defaultValue = "AUTO") ParseMode parseMode) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "File is empty"));
@@ -62,7 +83,20 @@ public class DocumentController {
         }
 
         log.info("上传文档：{}（{} 字节）", fileName, file.getSize());
-        UUID documentId = ingestionService.ingestDocument(file);
+
+        // 在请求线程内流式落盘到独立临时文件，脱离 multipart 临时文件生命周期
+        final DocumentSource source;
+        try {
+            Path tempFile = Files.createTempFile("eon-kb-upload-", ".tmp");
+            file.transferTo(tempFile);
+            source = new DocumentSource(fileName, tempFile);
+        } catch (IOException e) {
+            log.error("转存上传文件到磁盘失败：{}", fileName, e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Failed to store uploaded file"));
+        }
+
+        UUID documentId = ingestionService.ingestDocument(source, parseMode);
 
         // 保存知识库关联
         if (knowledgeBaseIds != null && !knowledgeBaseIds.isEmpty()) {
@@ -76,7 +110,25 @@ public class DocumentController {
                 "documentId", documentId.toString(),
                 "fileName", fileName,
                 "status", DocumentStatus.PROCESSING.name(),
+                "parseMode", parseMode.name(),
                 "message", "Document uploaded and processing started"
+        ));
+    }
+
+    /**
+     * 上传解析方式选项：告知前端云端解析（LlamaParse）当前是否可用，
+     * 以决定 CLOUD 选项是否可选。
+     */
+    @GetMapping("/parse-options")
+    public ResponseEntity<ParseOptionsDto> parseOptions() {
+        List<String> cloudTypes = llamaParseProperties.getTypes().stream()
+                .map(Enum::name)
+                .sorted()
+                .toList();
+        return ResponseEntity.ok(new ParseOptionsDto(
+                parserRouter.isCloudAvailable(),
+                cloudTypes,
+                ParseMode.AUTO.name()
         ));
     }
 
@@ -168,6 +220,7 @@ public class DocumentController {
                 doc.getFileSize(),
                 doc.getChunkCount(),
                 doc.getStatus() != null ? doc.getStatus().name() : null,
+                doc.getParseMode() != null ? doc.getParseMode().name() : null,
                 doc.getErrorMessage(),
                 doc.getCreatedAt(),
                 kbDtos

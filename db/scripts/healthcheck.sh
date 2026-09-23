@@ -33,13 +33,13 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
 fi
 
 # 检查 PostgreSQL 连接
-if ! docker exec "$CONTAINER_NAME" pg_isready -U postgres -d eon > /dev/null 2>&1; then
+if ! docker exec "$CONTAINER_NAME" pg_isready -U postgres -d eon-kb > /dev/null 2>&1; then
     log "WARNING: PostgreSQL 无法接受连接"
     exit 1
 fi
 
 # 检查扩展是否加载
-EXTENSIONS_OK=$(docker exec "$CONTAINER_NAME" psql -U postgres -d eon -tAc \
+EXTENSIONS_OK=$(docker exec "$CONTAINER_NAME" psql -U postgres -d eon-kb -tAc \
     "SELECT count(*) FROM pg_extension WHERE extname IN ('vector','pg_trgm','zhparser');" 2>/dev/null || echo "0")
 
 if [ "$EXTENSIONS_OK" -lt 3 ]; then

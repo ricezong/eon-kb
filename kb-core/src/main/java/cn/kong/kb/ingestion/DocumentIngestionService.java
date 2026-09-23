@@ -2,11 +2,11 @@ package cn.kong.kb.ingestion;
 
 import cn.kong.kb.domain.KbDocument;
 import cn.kong.kb.domain.KbDocumentType;
+import cn.kong.kb.domain.ParseMode;
 import cn.kong.kb.mapper.DocumentMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
@@ -34,25 +34,27 @@ public class DocumentIngestionService {
     /**
      * 同步入口：保存文档记录（状态 PROCESSING）并触发异步处理。
      *
-     * @param file 上传的文件
+     * @param source 文档输入快照（已落盘，生命周期独立于 HTTP 请求，可安全跨线程传递）
+     * @param mode   解析方式（AUTO / LOCAL / CLOUD），随文档持久化并传给解析路由
      * @return 新建文档的 ID
      */
-    public UUID ingestDocument(MultipartFile file) {
-        KbDocumentType type = KbDocumentType.fromFileName(file.getOriginalFilename());
+    public UUID ingestDocument(DocumentSource source, ParseMode mode) {
+        KbDocumentType type = KbDocumentType.fromFileName(source.filename());
 
         KbDocument kbDocument = new KbDocument(
-                file.getOriginalFilename(),
+                source.filename(),
                 type.name(),
-                file.getSize()
+                source.size()
         );
+        kbDocument.setParseMode(mode);
 
         // 插入文档记录，主键通过 useGeneratedKeys 回写到 kbDocument.id
         documentMapper.insert(kbDocument);
         UUID documentId = kbDocument.getId();
-        log.info("文档记录已创建：{}（{}）", file.getOriginalFilename(), documentId);
+        log.info("文档记录已创建：{}（{}，解析方式 {}）", source.filename(), documentId, mode);
 
         // 经由独立 Bean 触发异步流水线（跨 Bean 调用才能命中 @Async 代理）
-        ingestionPipeline.process(file, documentId, type);
+        ingestionPipeline.process(source, documentId, type, mode);
 
         return documentId;
     }

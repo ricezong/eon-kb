@@ -13,6 +13,7 @@ public record DocumentDto(
         Long fileSize,
         int chunkCount,
         String status,
+        String parseMode,
         String errorMessage,
         LocalDateTime createdAt,
         List<KnowledgeBaseDto> knowledgeBases  // 文档归属的知识库列表

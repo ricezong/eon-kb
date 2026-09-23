@@ -1,11 +1,11 @@
 package cn.kong.kb.ingestion.parser;
 
+import cn.kong.kb.ingestion.DocumentSource;
 import org.jsoup.Jsoup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.List;
@@ -27,11 +27,11 @@ public class HtmlDocumentParser implements DocumentParser {
     }
 
     @Override
-    public List<Document> parse(MultipartFile file) {
+    public List<Document> parse(DocumentSource source) {
         try {
-            String fileName = file.getOriginalFilename();
+            String fileName = source.filename();
             // charsetName 传 null：jsoup 依据 BOM / meta charset 自动探测编码
-            var dom = Jsoup.parse(file.getInputStream(), null, "");
+            var dom = Jsoup.parse(source.inputStream(), null, "");
             String title = dom.title();
 
             String markdown = converter.convert(dom);
@@ -48,7 +48,7 @@ public class HtmlDocumentParser implements DocumentParser {
             }
             return List.of(new Document(markdown, metadata));
         } catch (Exception e) {
-            throw new IllegalStateException("HTML 解析失败：" + file.getOriginalFilename(), e);
+            throw new IllegalStateException("HTML 解析失败：" + source.filename(), e);
         }
     }
 }

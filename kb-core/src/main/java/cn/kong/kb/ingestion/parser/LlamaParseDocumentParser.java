@@ -10,12 +10,12 @@ import ai.llamaindex.llamacloud.models.parsing.ParsingGetParams;
 import ai.llamaindex.llamacloud.models.parsing.ParsingGetResponse;
 import cn.kong.kb.config.LlamaParseProperties;
 import cn.kong.kb.domain.KbDocumentType;
+import cn.kong.kb.ingestion.DocumentSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -58,12 +58,12 @@ public class LlamaParseDocumentParser implements DocumentParser {
     }
 
     @Override
-    public List<Document> parse(MultipartFile file) {
+    public List<Document> parse(DocumentSource source) {
         try {
-            String fileName = file.getOriginalFilename();
+            String fileName = source.filename();
             long start = System.currentTimeMillis();
 
-            String fileId = uploadFile(file);
+            String fileId = uploadFile(source);
 
             ParsingCreateResponse job = client.parsing().create(ParsingCreateParams.builder()
                     .fileId(fileId)
@@ -79,19 +79,18 @@ public class LlamaParseDocumentParser implements DocumentParser {
             return documents;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("LlamaParse 解析被中断：" + file.getOriginalFilename(), e);
+            throw new IllegalStateException("LlamaParse 解析被中断：" + source.filename(), e);
         } catch (Exception e) {
-            throw new IllegalStateException("LlamaParse 解析失败：" + file.getOriginalFilename(), e);
+            throw new IllegalStateException("LlamaParse 解析失败：" + source.filename(), e);
         }
     }
 
     /** 上传文件到 LlamaCloud，返回 fileId。 */
-    private String uploadFile(MultipartFile file) throws Exception {
-        String fileName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload";
+    private String uploadFile(DocumentSource source) throws Exception {
         FileCreateParams params = FileCreateParams.builder()
                 .file(MultipartField.<InputStream>builder()
-                        .value(file.getInputStream())
-                        .filename(fileName)
+                        .value(source.inputStream())
+                        .filename(source.filename())
                         .build())
                 .purpose("parse")
                 .build();

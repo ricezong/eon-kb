@@ -1,13 +1,13 @@
 package cn.kong.kb.ingestion.parser;
 
 import cn.kong.kb.domain.KbDocumentType;
+import cn.kong.kb.ingestion.DocumentSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
-import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 
@@ -23,13 +23,13 @@ public class TikaDocumentParser implements DocumentParser {
     private static final Logger log = LoggerFactory.getLogger(TikaDocumentParser.class);
 
     @Override
-    public List<Document> parse(MultipartFile file) {
-        KbDocumentType type = KbDocumentType.fromFileName(file.getOriginalFilename());
+    public List<Document> parse(DocumentSource source) {
+        KbDocumentType type = KbDocumentType.fromFileName(source.filename());
 
         try {
-            return parseWithTika(file, type);
+            return parseWithTika(source, type);
         } catch (Exception e) {
-            log.error("解析文档失败：{}", file.getOriginalFilename(), e);
+            log.error("解析文档失败：{}", source.filename(), e);
             throw new RuntimeException("文档解析失败：" + e.getMessage(), e);
         }
     }
@@ -37,14 +37,9 @@ public class TikaDocumentParser implements DocumentParser {
     /**
      * 使用 Apache Tika 解析文档（PDF、Word、PPT、TXT、MD）。
      */
-    private List<Document> parseWithTika(MultipartFile file, KbDocumentType type) {
+    private List<Document> parseWithTika(DocumentSource source, KbDocumentType type) {
         try {
-            ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
-                @Override
-                public String getFilename() {
-                    return file.getOriginalFilename();
-                }
-            };
+            Resource resource = source.toResource();
 
             TikaDocumentReader reader = new TikaDocumentReader(resource);
             List<Document> documents = reader.get();
@@ -53,7 +48,7 @@ public class TikaDocumentParser implements DocumentParser {
             for (int i = 0; i < documents.size(); i++) {
                 Document doc = documents.get(i);
                 Map<String, Object> metadata = new HashMap<>(doc.getMetadata());
-                metadata.put("source_file", file.getOriginalFilename());
+                metadata.put("source_file", source.filename());
                 metadata.put("file_type", type.name());
                 metadata.put("page_number", i + 1);
                 doc.getMetadata().putAll(metadata);
@@ -65,7 +60,7 @@ public class TikaDocumentParser implements DocumentParser {
             }
 
             log.info("使用 Tika 解析 {}：得到 {} 个文档片段",
-                    file.getOriginalFilename(), documents.size());
+                    source.filename(), documents.size());
             return documents;
         } catch (Exception e) {
             throw new RuntimeException("Tika 解析失败：" + e.getMessage(), e);

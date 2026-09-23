@@ -141,6 +141,7 @@ public class KnowledgeBaseController {
                 doc.getFileSize(),
                 doc.getChunkCount(),
                 doc.getStatus() != null ? doc.getStatus().name() : null,
+                doc.getParseMode() != null ? doc.getParseMode().name() : null,
                 doc.getErrorMessage(),
                 doc.getCreatedAt(),
                 kbDtos

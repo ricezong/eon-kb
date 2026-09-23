@@ -3,8 +3,9 @@ package cn.kong.kb.ingestion;
 import cn.kong.kb.domain.DocumentStatus;
 import cn.kong.kb.domain.KbChunk;
 import cn.kong.kb.domain.KbDocumentType;
+import cn.kong.kb.domain.ParseMode;
 import cn.kong.kb.ingestion.chunker.ChunkerFactory;
-import cn.kong.kb.ingestion.parser.DocumentParser;
+import cn.kong.kb.ingestion.parser.DocumentParserRouter;
 import cn.kong.kb.ingestion.polish.ChunkPolishService;
 import cn.kong.kb.mapper.ChunkMapper;
 import cn.kong.kb.mapper.DocumentMapper;
@@ -14,8 +15,8 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -42,14 +43,14 @@ public class IngestionPipeline {
     /** 每批向量化的切片数，与 PgVectorStore 的 max-document-batch-size 保持一致 */
     private static final int EMBEDDING_BATCH_SIZE = 20;
 
-    private final DocumentParser documentParser;
+    private final DocumentParserRouter documentParser;
     private final ChunkerFactory chunkerFactory;
     private final ChunkPolishService chunkPolishService;
     private final PgVectorStore vectorStore;
     private final ChunkMapper chunkMapper;
     private final DocumentMapper documentMapper;
 
-    public IngestionPipeline(DocumentParser documentParser,
+    public IngestionPipeline(DocumentParserRouter documentParser,
                              ChunkerFactory chunkerFactory,
                              ChunkPolishService chunkPolishService,
                              PgVectorStore vectorStore,
@@ -64,18 +65,32 @@ public class IngestionPipeline {
     }
 
     /**
-     * 异步处理单个文档。
+     * 异步处理单个文档，并负责其磁盘临时文件的生命周期。
      *
-     * <p>任何一步失败都会将文档状态置为 FAILED 并记录原因，
-     * 不向调用方抛出（void 异步方法）。</p>
+     * <p>{@code source} 以 try-with-resources 持有：无论处理成功或失败，
+     * 结束后都会删除已落盘的上传临时文件，避免临时文件泄漏。
+     * 实际业务在 {@link #doProcess} 中执行。</p>
      */
     @Async("ingestionExecutor")
-    public void process(MultipartFile file, UUID documentId, KbDocumentType type) {
+    public void process(DocumentSource source, UUID documentId, KbDocumentType type, ParseMode mode) {
+        try (source) {
+            doProcess(source, documentId, type, mode);
+        } catch (IOException e) {
+            log.warn("清理上传临时文件失败：{}（{}）", source.filename(), source.path(), e);
+        }
+    }
+
+    /**
+     * 摄入业务主流程：解析 → 分块 → 润色 → 向量化入库 → 状态回写。
+     *
+     * <p>任何一步失败都会将文档状态置为 FAILED 并记录原因，不向调用方抛出。</p>
+     */
+    private void doProcess(DocumentSource source, UUID documentId, KbDocumentType type, ParseMode mode) {
         try {
-            log.info("开始异步处理文档 {}", documentId);
+            log.info("开始异步处理文档 {}（解析方式：{}）", documentId, mode);
 
             // 第一步：解析
-            List<Document> parsedDocs = documentParser.parse(file);
+            List<Document> parsedDocs = documentParser.parse(source, mode);
             log.info("从文档 {} 解析出 {} 个片段", documentId, parsedDocs.size());
 
             // 第二步：分块

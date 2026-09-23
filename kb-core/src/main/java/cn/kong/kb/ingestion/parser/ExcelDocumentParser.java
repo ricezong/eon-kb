@@ -1,5 +1,6 @@
 package cn.kong.kb.ingestion.parser;
 
+import cn.kong.kb.ingestion.DocumentSource;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -9,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -27,10 +27,10 @@ public class ExcelDocumentParser implements DocumentParser {
     private static final Logger log = LoggerFactory.getLogger(ExcelDocumentParser.class);
 
     @Override
-    public List<Document> parse(MultipartFile file) {
+    public List<Document> parse(DocumentSource source) {
         List<Document> documents = new ArrayList<>();
 
-        try (InputStream is = file.getInputStream();
+        try (InputStream is = source.inputStream();
              Workbook workbook = new XSSFWorkbook(is)) {
 
             for (int s = 0; s < workbook.getNumberOfSheets(); s++) {
@@ -41,7 +41,7 @@ public class ExcelDocumentParser implements DocumentParser {
                 if (markdown.isBlank()) continue;
 
                 Map<String, Object> metadata = new HashMap<>();
-                metadata.put("source_file", file.getOriginalFilename());
+                metadata.put("source_file", source.filename());
                 metadata.put("file_type", "XLSX");
                 metadata.put("sheet_name", sheetName);
                 metadata.put("sheet_index", s);
@@ -50,7 +50,7 @@ public class ExcelDocumentParser implements DocumentParser {
                 documents.add(new Document(markdown, metadata));
             }
 
-            log.info("解析 Excel {}：共 {} 个工作表", file.getOriginalFilename(), documents.size());
+            log.info("解析 Excel {}：共 {} 个工作表", source.filename(), documents.size());
         } catch (Exception e) {
             throw new RuntimeException("Excel 解析失败：" + e.getMessage(), e);
         }

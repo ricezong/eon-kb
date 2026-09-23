@@ -65,6 +65,13 @@ const kbOptions = computed<Array<{ label: string; value: string }>>(() => [
   ...kbStore.items.map((kb) => ({ label: kb.name, value: kb.id! }))
 ]);
 
+/** 解析方式标签（对应后端 ParseMode） */
+const PARSE_MODE_LABEL: Record<string, { label: string; type: 'default' | 'info' | 'success' }> = {
+  AUTO: { label: '自动', type: 'default' },
+  LOCAL: { label: '本地', type: 'info' },
+  CLOUD: { label: '云端', type: 'success' }
+};
+
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase();
   return docs.value.filter((d) => {
@@ -143,6 +150,17 @@ const columns = computed<DataTableColumns<Document>>(() => [
     key: 'status',
     width: 100,
     render: (row) => h(StatusBadge, { status: row.status })
+  },
+  {
+    title: '解析',
+    key: 'parseMode',
+    width: 76,
+    render: (row) => {
+      const meta = PARSE_MODE_LABEL[row.parseMode ?? ''];
+      if (!meta) return h('span', { class: 'muted' }, '—');
+      return h(NTag, { size: 'small', round: true, bordered: false, type: meta.type },
+        { default: () => meta.label });
+    }
   },
   {
     title: '切片',

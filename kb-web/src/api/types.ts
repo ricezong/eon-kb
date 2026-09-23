@@ -24,6 +24,19 @@ export type DocumentFileType =
   | 'HTML'
   | string;
 
+/** 解析方式（对应 ParseMode 枚举） */
+export type ParseMode = 'AUTO' | 'LOCAL' | 'CLOUD';
+
+/** 上传解析方式能力（对应 ParseOptionsDto） */
+export interface ParseOptions {
+  /** LlamaParse 云端解析是否可用（未配置密钥时为 false） */
+  cloudEnabled: boolean;
+  /** 云端解析支持的文档类型（AUTO 模式下这些类型走云端） */
+  cloudSupportedTypes: string[];
+  /** 默认解析方式 */
+  defaultMode: ParseMode;
+}
+
 /** 知识库 */
 export interface KnowledgeBase {
   id: string | null;
@@ -42,6 +55,7 @@ export interface Document {
   fileSize: number | null;
   chunkCount: number;
   status: DocumentStatus | null;
+  parseMode: ParseMode | null;
   errorMessage: string | null;
   createdAt: string | null;
   knowledgeBases: KnowledgeBase[];
@@ -100,5 +114,6 @@ export interface UploadResponse {
   documentId: string;
   fileName: string;
   status: DocumentStatus;
+  parseMode: ParseMode;
   message: string;
 }

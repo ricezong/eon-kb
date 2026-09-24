@@ -13,11 +13,11 @@ spring:
   #       OpenAiEmbeddingAutoConfiguration / PgVectorStoreAutoConfiguration 已在启动类排除。
   ai:
     openai:
-      api-key: ${DEEPSEEK_API_KEY:}
-      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:tp-c654g8cbqqn3xxxxxxxxxfoincdh9vfovfm8ez5klpze5d}
+      base-url: ${DEEPSEEK_BASE_URL:https://token-plan-cn.xiaomimimo.com}
       chat:
         options:
-          model: deepseek-chat
+          model: mimo-v2.6-flash
           temperature: 0.2
     vectorstore:
       pgvector:
@@ -32,17 +32,17 @@ spring:
 app:
   # 知识库独立数据源（与宿主应用的数据源隔离，前缀为 app.datasource）
   datasource:
-    jdbc-url: ${KB_DB_URL:jdbc:postgresql://127.0.0.1:5432/eon-kb}
+    jdbc-url: ${KB_DB_URL:jdbc:postgresql://127.0.0.1:15432/eon-kb}
     username: ${KB_DB_USERNAME:postgres}
-    password: ${KB_DB_PASSWORD:}
+    password: ${KB_DB_PASSWORD:xxxx}
     driver-class-name: org.postgresql.Driver
   embedding:
-    api-key: ${DASHSCOPE_API_KEY:}
+    api-key: ${DASHSCOPE_API_KEY:sk-ws-H.RYHDILP.ASaw.x6JoAY0Y}
     base-url: ${DASHSCOPE_EMBEDDING_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
     model: text-embedding-v4
     dimensions: 1024
   rerank:
-    api-key: ${DASHSCOPE_API_KEY:}
+    api-key: ${DASHSCOPE_API_KEY:sk-ws-H.RYHDILP.ASaw.MxUMj_C16JoAY0Y}
     base-url: ${DASHSCOPE_RERANK_BASE_URL:https://dashscope.aliyuncs.com/compatible-api/v1}
     model: qwen3-rerank
     top-n: 5
@@ -58,16 +58,18 @@ app:
     max-tokens: 1024
     overlap-tokens: 50
   polish:
-    enabled: true                    # 润色功能总开关
+    enabled: false                    # 润色功能总开关
     max-requests-per-minute: 30      # 速率限制（请求/分钟）
     max-content-length: 8000         # 超过此长度的切片跳过润色
   # 文档解析配置（本地 Tika/POI 始终可用，LlamaParse 为云端增强，按类型路由）
   parsing:
     llamaparse:
-      enabled: ${LLAMA_CLOUD_ENABLED:false}   # 云端解析总开关（默认关闭，纯本地运行）
-      api-key: ${LLAMA_CLOUD_API_KEY:}         # LlamaCloud API Key（llx- 开头）
-      base-url: ${LLAMA_CLOUD_BASE_URL:https://api.llamaindex.ai}
+      enabled: ${LLAMA_CLOUD_ENABLED:true}   # 云端解析总开关（默认关闭，纯本地运行）
+      api-key: ${LLAMA_CLOUD_API_KEY:llx-UJPgxtS2eZHclR3vqdFOInh1}         # LlamaCloud API Key（llx- 开头）
+      base-url: ${LLAMA_CLOUD_BASE_URL:https://api.cloud.llamaindex.ai}
       tier: FAST                               # 解析档位：FAST / COST_EFFECTIVE / AGENTIC / AGENTIC_PLUS（按页计费依次递增）
+      ocr-languages: [ch_sim]                  # OCR 语言（仅图片内文字识别），如 ch_sim/ch_tra/en；空列表=服务端默认
+      merge-continued-tables: false            # 跨页续表合并；副作用：输出不分页且移除页眉页脚，影响按页提取
       poll-interval-ms: 2000                   # 任务轮询间隔（毫秒）
       timeout-minutes: 10                      # 单文档解析总超时（分钟）
       types: pdf,docx,pptx                     # 走云端解析的文档类型；xlsx/txt/md/html 始终本地解析（省配额）

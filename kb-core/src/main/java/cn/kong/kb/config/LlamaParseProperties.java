@@ -4,6 +4,7 @@ import cn.kong.kb.domain.KbDocumentType;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -36,6 +37,19 @@ public class LlamaParseProperties {
     /** 允许走云端解析的文档类型；xlsx/txt/md/html 建议保持本地解析以节省配额 */
     private Set<KbDocumentType> types = EnumSet.of(
             KbDocumentType.PDF, KbDocumentType.DOCX, KbDocumentType.PPTX);
+
+    /**
+     * OCR 语言（仅作用于图片内文字识别，不影响正文）。
+     * 取值见 LlamaParse ParsingLanguages，如 ch_sim（简体中文）/ ch_tra / en。
+     * 空列表 = 不设置，沿用服务端默认。
+     */
+    private List<String> ocrLanguages = List.of();
+
+    /**
+     * 跨页续表合并。副作用：合并后输出不再分页且移除页眉页脚，
+     * 影响 {@code LlamaParseDocumentParser#extractMarkdown} 的按页提取，故默认关闭。
+     */
+    private boolean mergeContinuedTables = false;
 
     public boolean isEnabled() {
         return enabled;
@@ -91,5 +105,21 @@ public class LlamaParseProperties {
 
     public void setTypes(Set<KbDocumentType> types) {
         this.types = types;
+    }
+
+    public List<String> getOcrLanguages() {
+        return ocrLanguages;
+    }
+
+    public void setOcrLanguages(List<String> ocrLanguages) {
+        this.ocrLanguages = ocrLanguages;
+    }
+
+    public boolean isMergeContinuedTables() {
+        return mergeContinuedTables;
+    }
+
+    public void setMergeContinuedTables(boolean mergeContinuedTables) {
+        this.mergeContinuedTables = mergeContinuedTables;
     }
 }

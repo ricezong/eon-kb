@@ -41,7 +41,7 @@ public class IngestionPipeline {
     private static final Logger log = LoggerFactory.getLogger(IngestionPipeline.class);
 
     /** 每批向量化的切片数，与 PgVectorStore 的 max-document-batch-size 保持一致 */
-    private static final int EMBEDDING_BATCH_SIZE = 20;
+    private static final int EMBEDDING_BATCH_SIZE = 10;
 
     private final DocumentParserRouter documentParser;
     private final ChunkerFactory chunkerFactory;

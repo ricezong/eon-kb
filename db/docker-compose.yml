@@ -30,7 +30,7 @@ services:
       POSTGRES_DB: eon-kb                 # 与 application.yml 的 jdbc-url 库名一致
       POSTGRES_USER: postgres
       # 与 application.yml 的 KB_DB_PASSWORD 默认值保持一致；生产建议用环境变量覆盖
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kong#2026}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xxxx}
       TZ: Asia/Shanghai
       PGTZ: Asia/Shanghai
 

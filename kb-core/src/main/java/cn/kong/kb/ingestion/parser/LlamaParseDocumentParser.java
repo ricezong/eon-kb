@@ -10,6 +10,7 @@ import ai.llamaindex.llamacloud.models.parsing.ParsingCreateParams;
 import ai.llamaindex.llamacloud.models.parsing.ParsingCreateResponse;
 import ai.llamaindex.llamacloud.models.parsing.ParsingGetParams;
 import ai.llamaindex.llamacloud.models.parsing.ParsingGetResponse;
+import ai.llamaindex.llamacloud.models.parsing.ParsingLanguages;
 import cn.kong.kb.config.LlamaParseProperties;
 import cn.kong.kb.domain.KbDocumentType;
 import cn.kong.kb.ingestion.DocumentSource;
@@ -67,11 +68,14 @@ public class LlamaParseDocumentParser implements DocumentParser {
 
             String fileId = uploadFile(source);
 
-            ParsingCreateResponse job = client.parsing().create(ParsingCreateParams.builder()
+            ParsingCreateParams.Builder jobParams = ParsingCreateParams.builder()
                     .fileId(fileId)
                     .tier(resolveTier(properties.getTier()))
-                    .version(ParsingCreateParams.Version.LATEST)
-                    .build());
+                    .version(ParsingCreateParams.Version.LATEST);
+            applyOcrLanguages(jobParams);
+            applyMergeContinuedTables(jobParams);
+
+            ParsingCreateResponse job = client.parsing().create(jobParams.build());
 
             ParsingGetResponse result = awaitCompletion(job.id(), fileName);
 
@@ -94,8 +98,39 @@ public class LlamaParseDocumentParser implements DocumentParser {
         }
     }
 
-    /** 上传文件到 LlamaCloud，返回 fileId。 */
-    private String uploadFile(DocumentSource source) throws Exception {
+    /**
+     * 设置 OCR 语言（仅作用于图片内文字识别）。
+     * 配置为空时跳过，沿用服务端默认。
+     */
+    private void applyOcrLanguages(ParsingCreateParams.Builder builder) {
+        if (properties.getOcrLanguages().isEmpty()) {
+            return;
+        }
+        List<ParsingLanguages> languages = properties.getOcrLanguages().stream()
+                .map(lang -> ParsingLanguages.Companion.of(lang.trim().toLowerCase()))
+                .toList();
+        builder.processingOptions(ParsingCreateParams.ProcessingOptions.builder()
+                .ocrParameters(ParsingCreateParams.ProcessingOptions.OcrParameters.builder()
+                        .languages(languages)
+                        .build())
+                .build());
+    }
+
+    /** 开启跨页续表合并（副作用：合并后输出不分页且移除页眉页脚，见配置注释）。 */
+    private void applyMergeContinuedTables(ParsingCreateParams.Builder builder) {
+        if (!properties.isMergeContinuedTables()) {
+            return;
+        }
+        builder.outputOptions(ParsingCreateParams.OutputOptions.builder()
+                .markdown(ParsingCreateParams.OutputOptions.Markdown.builder()
+                        .tables(ParsingCreateParams.OutputOptions.Markdown.Tables.builder()
+                                .mergeContinuedTables(true)
+                                .build())
+                        .build())
+                .build());
+    }
+
+    /** 上传文件到 LlamaCloud，返回 fileId。 */    private String uploadFile(DocumentSource source) throws Exception {
         FileCreateParams params = FileCreateParams.builder()
                 .file(MultipartField.<InputStream>builder()
                         .value(source.inputStream())

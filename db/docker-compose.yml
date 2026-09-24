@@ -1,0 +1,69 @@
+# ============================================================
+# Eon 知识库 - PostgreSQL 部署
+#
+# 从 ./docker/Dockerfile 构建定制镜像：
+#   基座 pgvector/pgvector:pg16（含 vector）+ 编译 zhparser/scws（中文分词）
+#   pg_trgm 由 contrib 自带。三扩展齐全，满足 schema 要求。
+#
+# 构建并启动：cd db && docker compose up -d --build
+# 查看日志：  docker compose logs -f postgres
+# 停止：      docker compose down            （保留数据卷）
+#
+# 首次启动时，docker-entrypoint 会：
+#   1. 按 POSTGRES_DB 建库 eon-kb
+#   2. 连接 eon-kb 执行 ./docker/init.sql（建扩展/表/索引/触发器）
+# 注意：init 脚本仅在数据卷为空（首次初始化）时执行；
+#       如需重跑，先 docker compose down -v 清空数据卷。
+# ============================================================
+
+services:
+  postgres:
+    # 从本地 Dockerfile 构建（基座 pgvector/pgvector:pg16 + 编译 zhparser/scws）
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
+    image: eon-postgres:16               # 构建产物标签，便于复用
+    container_name: eon-postgres          # healthcheck.sh / backup.sh 依赖此名
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: eon-kb                 # 与 application.yml 的 jdbc-url 库名一致
+      POSTGRES_USER: postgres
+      # 与 application.yml 的 KB_DB_PASSWORD 默认值保持一致；生产建议用环境变量覆盖
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kong#2026}
+      TZ: Asia/Shanghai
+      PGTZ: Asia/Shanghai
+
+    ports:
+      # 宿主 15432 → 容器 5432，与 application.yml 的 jdbc-url 端口(15432)一致
+      - "15432:5432"
+
+    volumes:
+      - eon_pgdata:/var/lib/postgresql/data                       # 数据持久化（backup.sh 引用 eon_pgdata）
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+
+    # 中文全文检索 + 向量索引场景适当放大共享内存与连接数
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=3GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - max_connections=200
+    shm_size: 1gb
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d eon-kb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  eon_pgdata:
+    name: eon_pgdata

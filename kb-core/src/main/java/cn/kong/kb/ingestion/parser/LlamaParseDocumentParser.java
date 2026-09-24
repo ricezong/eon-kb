@@ -2,6 +2,8 @@ package cn.kong.kb.ingestion.parser;
 
 import ai.llamaindex.llamacloud.client.LlamaCloudClient;
 import ai.llamaindex.llamacloud.core.MultipartField;
+import ai.llamaindex.llamacloud.errors.LlamaCloudIoException;
+import ai.llamaindex.llamacloud.errors.LlamaCloudServiceException;
 import ai.llamaindex.llamacloud.models.files.FileCreateParams;
 import ai.llamaindex.llamacloud.models.files.FileCreateResponse;
 import ai.llamaindex.llamacloud.models.parsing.ParsingCreateParams;
@@ -80,6 +82,13 @@ public class LlamaParseDocumentParser implements DocumentParser {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("LlamaParse 解析被中断：" + source.filename(), e);
+        } catch (LlamaCloudServiceException e) {
+            throw new IllegalStateException(String.format(
+                    "LlamaParse 云端返回错误（%s，HTTP %d）：%s",
+                    source.filename(), e.statusCode(), e.body()), e);
+        } catch (LlamaCloudIoException e) {
+            throw new IllegalStateException(
+                    "LlamaParse 网络异常（" + source.filename() + "）：" + e.getMessage(), e);
         } catch (Exception e) {
             throw new IllegalStateException("LlamaParse 解析失败：" + source.filename(), e);
         }

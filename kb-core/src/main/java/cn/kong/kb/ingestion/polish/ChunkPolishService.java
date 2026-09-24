@@ -29,7 +29,7 @@ public class ChunkPolishService {
     private final String promptTemplate;
     private final RateLimiter rateLimiter;
 
-    @Value("${app.polish.enabled:true}")
+    @Value("${app.polish.enabled:false}")
     private boolean enabled;
 
     @Value("${app.polish.max-content-length:8000}")

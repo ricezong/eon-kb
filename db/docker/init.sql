@@ -1,14 +1,14 @@
 -- ============================================================
--- eon-kb 数据库初始化脚本
--- 库 → 扩展 → 表 → 索引 → 触发器
--- 使用方式：psql -U postgres -f schema.sql
+-- Eon 知识库 - Docker 初始化脚本
+-- 由 docker-entrypoint 在首次建库后自动对 eon-kb 执行。
+--
+-- 与 ../schema.sql 的唯一区别：去掉了 CREATE DATABASE 语句
+-- （库已由 compose 的 POSTGRES_DB=eon-kb 创建，脚本直接连到该库执行）。
+-- 如需修改表结构，请同步更新 schema.sql 与本文件。
 -- ============================================================
 
--- ========================= 建库 =========================
-
-CREATE DATABASE eon-kb;
-
 -- ========================= 扩展 =========================
+-- 依赖镜像已内置：vector(pgvector) / pg_trgm / zhparser
 
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;

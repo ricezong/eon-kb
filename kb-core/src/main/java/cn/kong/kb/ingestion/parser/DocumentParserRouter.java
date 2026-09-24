@@ -78,7 +78,7 @@ public class DocumentParserRouter implements DocumentParser {
                 }
                 log.warn("LlamaParse 返回空结果，回退本地解析：{}", source.filename());
             } catch (Exception e) {
-                log.warn("LlamaParse 解析失败，回退本地解析：{}：{}", source.filename(), e.getMessage());
+                log.warn("LlamaParse 解析失败，回退本地解析：{}", source.filename(), e);
             }
         }
 
